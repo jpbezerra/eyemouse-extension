@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Calibração — EyeMouse</title>
+  <link rel="stylesheet" href="calibration.css" />
+</head>
+<body>
+  <section id="screen-intro" class="screen">
+    <div class="card">
+      <h1>👁️ Calibração do EyeMouse</h1>
+      <p>
+        Mantenha a cabeça parada, em uma posição confortável, com boa
+        iluminação de frente para o rosto. Você verá uma sequência de
+        pontos na tela: <strong>olhe fixamente para cada ponto e pisque
+        com os dois olhos</strong> para confirmá-lo.
+      </p>
+      <div class="actions">
+        <button id="start-full" class="btn btn-primary" type="button">
+          Calibração completa (9 pontos)
+        </button>
+        <button id="start-quick" class="btn btn-secondary" type="button">
+          Recalibração rápida (3 pontos)
+        </button>
+      </div>
+      <p class="hint">
+        Use a recalibração rápida quando trocar de óculos, iluminação ou
+        posição — sem precisar refazer os 9 pontos.
+      </p>
+      <p id="engine-status" class="engine-status" role="status" aria-live="polite">
+        Iniciando câmera…
+      </p>
+    </div>
+  </section>
+
+  <section id="screen-running" class="screen" hidden>
+    <div id="target" class="target"></div>
+    <p id="running-hint" class="running-hint">Olhe para o ponto e pisque para confirmar</p>
+    <div class="progress" role="status" aria-live="polite">
+      <span id="progress-label">Ponto 1 de 9</span>
+    </div>
+  </section>
+
+  <section id="screen-done" class="screen" hidden>
+    <div class="card">
+      <h1>✅ Calibração concluída</h1>
+      <p>O EyeMouse já pode ser ativado pelo popup da extensão.</p>
+      <button id="close-btn" class="btn btn-primary" type="button">Fechar</button>
+    </div>
+  </section>
+
+  <script type="module" src="calibration.js"></script>
+</body>
+</html>

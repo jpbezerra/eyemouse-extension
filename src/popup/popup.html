@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>EyeMouse</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <main class="panel">
+    <header class="header">
+      <h1>👁️ EyeMouse</h1>
+      <span id="status-pill" class="status-pill" role="status" aria-live="polite">Pausado</span>
+    </header>
+
+    <p id="calibration-hint" class="hint" hidden>
+      Calibre antes de ativar o EyeMouse pela primeira vez.
+    </p>
+
+    <button id="toggle-btn" class="btn btn-primary" type="button" aria-pressed="false">
+      Ativar EyeMouse
+    </button>
+
+    <button id="calibrate-btn" class="btn btn-secondary" type="button">
+      🎯 Calibrar (9 pontos)
+    </button>
+
+    <section class="settings" aria-label="Configurações">
+      <fieldset class="field">
+        <legend>Modo de clique</legend>
+        <label class="radio">
+          <input type="radio" name="clickMode" value="blink" />
+          Piscada (fechar os olhos)
+        </label>
+        <label class="radio">
+          <input type="radio" name="clickMode" value="dwell" />
+          Fixação do olhar (dwell)
+        </label>
+      </fieldset>
+
+      <div class="field" id="dwell-time-field" hidden>
+        <label for="dwell-time">Tempo de fixação: <output id="dwell-time-value">800ms</output></label>
+        <input type="range" id="dwell-time" min="500" max="2000" step="50" />
+      </div>
+
+      <div class="field">
+        <label for="sensitivity">Suavização do cursor: <output id="sensitivity-value">Média</output></label>
+        <input type="range" id="sensitivity" min="5" max="30" step="1" />
+      </div>
+
+      <label class="checkbox">
+        <input type="checkbox" id="sound-feedback" />
+        Bipe sonoro ao clicar
+      </label>
+    </section>
+
+    <p id="engine-warning" class="warning" role="alert" hidden></p>
+
+    <footer class="footer">
+      <span>Atalho: <kbd>Alt</kbd> + <kbd>E</kbd> ativa/pausa</span>
+    </footer>
+  </main>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+:root {
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: #0f172a;
+  color: #f8fafc;
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  overflow: hidden;
+}
+
+.screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card {
+  max-width: 480px;
+  background: #1e293b;
+  border-radius: 16px;
+  padding: 32px;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+}
+
+.card h1 {
+  margin-top: 0;
+  font-size: 22px;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 20px 0 12px;
+}
+
+.btn {
+  border: none;
+  border-radius: 10px;
+  padding: 12px 18px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn:focus-visible {
+  outline: 3px solid #93c5fd;
+  outline-offset: 2px;
+}
+
+.btn-primary {
+  background: #3b82f6;
+  color: #fff;
+}
+
+.btn-secondary {
+  background: #334155;
+  color: #f8fafc;
+}
+
+.hint {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.engine-status {
+  font-size: 13px;
+  color: #facc15;
+  min-height: 18px;
+}
+
+.target {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: radial-gradient(circle at center, #f8fafc 0%, #3b82f6 70%);
+  box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.25);
+  transform: translate(-50%, -50%);
+  transition: top 0.5s ease, left 0.5s ease;
+}
+
+.target.capturing {
+  box-shadow: 0 0 0 14px rgba(34, 197, 94, 0.35);
+  background: radial-gradient(circle at center, #f8fafc 0%, #22c55e 70%);
+}
+
+.running-hint {
+  position: absolute;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 15px;
+  color: #cbd5e1;
+}
+
+.progress {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 13px;
+  color: #94a3b8;
+}

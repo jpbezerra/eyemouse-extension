@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>EyeMouse — Offscreen Engine</title>
+</head>
+<body>
+  <!--
+    Documento offscreen (chrome.offscreen API): mantém a câmera e o
+    MediaPipe Face Landmarker rodando de forma persistente, independente
+    da aba ativa. Isso evita pedir permissão de câmera em cada site
+    visitado e evita reprocessar vídeo por aba — ver README (Arquitetura).
+  -->
+  <video id="camera-feed" autoplay muted playsinline style="display:none"></video>
+  <script type="module" src="./offscreen.js"></script>
+</body>
+</html>
