@@ -17,7 +17,7 @@ let currentX = window.innerWidth / 2;
 let currentY = window.innerHeight / 2;
 
 const overlay = new PointerOverlay();
-const mapper = new GazeMapper(0.15);
+const mapper = new GazeMapper(1.2); // corrigido para o valor real assim que getSettings() resolve, em applySettings()
 const marginScroll = new MarginScrollController({
   scrollMarginPct: 0.10,
   scrollMarginDwellMs: 400,
@@ -58,9 +58,9 @@ function dispatchClick(clickCount) {
 
 function handleGazeFrame(payload) {
   if (!isActive) return;
-  const { rx, ry, earLeft, earRight } = payload;
+  const { rx, ry, earLeft, earRight, t } = payload;
 
-  const mapped = mapper.map(rx, ry);
+  const mapped = mapper.map(rx, ry, t);
   if (!mapped) return; // ainda sem calibração salva
 
   currentX = mapped.xFrac * window.innerWidth;
@@ -77,7 +77,7 @@ function handleGazeFrame(payload) {
 
 function applySettings(next) {
   settings = next;
-  mapper.setAlpha(settings.smoothingAlpha);
+  mapper.setMinCutoff(settings.gazeMinCutoff);
   overlay.setSoundEnabled(settings.soundFeedback);
   blinkDetector?.updateSettings(settings);
   dwellClick?.updateSettings(settings);
@@ -109,21 +109,26 @@ chrome.runtime.onMessage.addListener((message) => {
       }
       break;
     case MSG.ENGINE_ERROR:
-      overlay.showWarning(describeEngineError(message.payload.message), 8000);
+      overlay.showWarning(describeEngineError(message.payload), 8000);
       break;
     default:
       break;
   }
 });
 
-function describeEngineError(code) {
+function describeEngineError({ stage, message: code, raw }) {
   if (code === 'camera-permission-denied') {
     return 'Permissão de câmera negada. Autorize o acesso à câmera para usar o EyeMouse.';
   }
   if (code === 'camera-not-found') {
     return 'Nenhuma câmera foi encontrada neste dispositivo.';
   }
-  return 'Erro ao iniciar o rastreamento ocular. Tente reativar o EyeMouse.';
+  if (code === 'camera-busy') {
+    return 'Câmera em uso por outro programa/aba. Feche o que estiver usando ela e reative o EyeMouse.';
+  }
+  // Erro não catalogado — mostra a mensagem real em vez de um texto genérico.
+  const stageLabel = stage === 'engine' ? 'motor de rastreamento' : 'câmera';
+  return `Erro no ${stageLabel}: ${raw || code}`;
 }
 
 async function init() {

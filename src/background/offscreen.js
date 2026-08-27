@@ -17,8 +17,14 @@ let faceLandmarker = null;
 let videoEl = null;
 let stream = null;
 let running = false;
-let rafId = null;
+let loopTimerId = null;
 let lastVideoTime = -1;
+
+// ~30 FPS. IMPORTANTE: nada de requestAnimationFrame aqui — rAF só dispara
+// em sincronia com o pintar da tela, e um documento offscreen nunca é
+// pintado. Na prática o Chrome quase congela o rAF nesse contexto (o loop
+// roda uma vez e trava), então o loop de captura tem que ser via timer.
+const FRAME_INTERVAL_MS = 33;
 
 const lumaCanvas = new OffscreenCanvas(32, 24);
 const lumaCtx = lumaCanvas.getContext('2d');
@@ -50,16 +56,48 @@ async function ensureEngine() {
   });
 }
 
-async function start() {
-  if (running) return;
-  try {
-    await ensureEngine();
-    videoEl = videoEl || document.getElementById('camera-feed');
-    if (!stream) {
-      stream = await navigator.mediaDevices.getUserMedia({
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// A permissão de câmera é pedida numa aba visível (a de calibração — ver
+// calibration.js), que solta a câmera logo em seguida para este documento
+// offscreen abrir seu próprio stream. Em algumas combinações de SO/driver
+// de webcam, o dispositivo físico leva um instante para ficar livre de
+// novo depois do `track.stop()` daquela aba, e essa primeira chamada aqui
+// pode falhar com "NotReadableError" (device in use) mesmo já com
+// permissão concedida. Só vale a pena tentar de novo nesse caso — erro de
+// permissão negada ou câmera inexistente não muda tentando de novo.
+const RETRYABLE_ERRORS = new Set(['NotReadableError', 'TrackStartError', 'AbortError']);
+const RETRY_DELAYS_MS = [300, 700, 1200];
+
+async function openCamera() {
+  let lastError;
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      return await navigator.mediaDevices.getUserMedia({
         video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30, min: 24 } },
         audio: false
       });
+    } catch (error) {
+      lastError = error;
+      if (!RETRYABLE_ERRORS.has(error?.name) || attempt === RETRY_DELAYS_MS.length) throw error;
+      await wait(RETRY_DELAYS_MS[attempt]);
+    }
+  }
+  throw lastError;
+}
+
+async function start() {
+  if (running) return;
+
+  let stage = 'engine'; // 'engine' (MediaPipe/wasm/modelo) ou 'camera' (getUserMedia)
+  try {
+    await ensureEngine();
+    stage = 'camera';
+    videoEl = videoEl || document.getElementById('camera-feed');
+    if (!stream) {
+      stream = await openCamera();
       videoEl.srcObject = stream;
       await videoEl.play();
     }
@@ -68,17 +106,21 @@ async function start() {
     loop();
   } catch (error) {
     running = false;
+    // Log completo aqui: este console só é visível inspecionando o próprio
+    // documento offscreen (chrome://extensions -> EyeMouse -> "Inspecionar
+    // visualizações" -> offscreen.html), já que ele não tem janela própria.
+    console.error(`[EyeMouse] falha ao iniciar (etapa: ${stage}):`, error);
     chrome.runtime.sendMessage({
       type: MSG.ENGINE_ERROR,
-      payload: { message: describeError(error) }
+      payload: { stage, message: describeError(error), raw: `${error?.name || 'Error'}: ${error?.message || error}` }
     });
   }
 }
 
 function stop() {
   running = false;
-  if (rafId) cancelAnimationFrame(rafId);
-  rafId = null;
+  if (loopTimerId) clearTimeout(loopTimerId);
+  loopTimerId = null;
   // Pausar desliga fisicamente a câmera (o indicador do Chrome some), o que
   // é o comportamento que o usuário espera de um botão "Pausado" (RF05.3) —
   // o service worker também fecha este documento offscreen logo em seguida.
@@ -91,6 +133,7 @@ function stop() {
 function describeError(error) {
   if (error?.name === 'NotAllowedError') return 'camera-permission-denied';
   if (error?.name === 'NotFoundError') return 'camera-not-found';
+  if (RETRYABLE_ERRORS.has(error?.name)) return 'camera-busy';
   return error?.message || String(error);
 }
 
@@ -102,7 +145,7 @@ function loop() {
     processResults(results);
     maybeCheckLowLight();
   }
-  rafId = requestAnimationFrame(loop);
+  loopTimerId = setTimeout(loop, FRAME_INTERVAL_MS);
 }
 
 function processResults(results) {

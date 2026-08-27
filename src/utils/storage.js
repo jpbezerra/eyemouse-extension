@@ -5,7 +5,16 @@
 export const DEFAULT_SETTINGS = {
   isActive: false,
   clickMode: 'blink', // 'blink' | 'dwell'
-  smoothingAlpha: 0.15, // RF01.3 — fator da EMA (0.05 a 0.3)
+  // RF01.3 — corte mínimo (Hz) do filtro One-Euro que suaviza rx/ry (ver
+  // src/content/smoothing.js). Substituiu uma EMA de alpha fixo: com alpha
+  // fixo só dava pra escolher entre "estável parado, mas atrasado ao
+  // mover" (alpha baixo) ou "reage rápido, mas treme parado" (alpha alto)
+  // — as duas foram testadas e reclamadas pelo usuário. O One-Euro ajusta
+  // o corte pela velocidade do olhar: baixo quando parado (estável pra
+  // clicar), alto quando em movimento (quase sem atraso). Este valor é só
+  // o corte de base (olhar parado) — controlado pelo slider "Suavização
+  // do cursor" no popup; menor = mais estável parado, maior = mais cru.
+  gazeMinCutoff: 1.2,
   blinkCloseThreshold: 0.18, // RF02.1
   blinkOpenThreshold: 0.24,
   blinkMinMs: 150, // RF02.2

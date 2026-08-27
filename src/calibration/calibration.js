@@ -27,9 +27,14 @@ const screens = {
   done: document.getElementById('screen-done')
 };
 const engineStatusEl = document.getElementById('engine-status');
+const globalBannerEl = document.getElementById('global-banner');
+const globalBannerTextEl = document.getElementById('global-banner-text');
+const globalBannerRetryEl = document.getElementById('global-banner-retry');
 const targetEl = document.getElementById('target');
 const runningHintEl = document.getElementById('running-hint');
 const progressLabelEl = document.getElementById('progress-label');
+const startFullBtn = document.getElementById('start-full');
+const startQuickBtn = document.getElementById('start-quick');
 
 let settings = null;
 let mode = null; // 'full' | 'quick'
@@ -43,6 +48,16 @@ let engineReady = false;
 
 function showScreen(name) {
   for (const key of Object.keys(screens)) screens[key].hidden = key !== name;
+}
+
+function showGlobalError(text, { retryable = false } = {}) {
+  globalBannerTextEl.textContent = text;
+  globalBannerRetryEl.hidden = !retryable;
+  globalBannerEl.hidden = false;
+}
+
+function hideGlobalError() {
+  globalBannerEl.hidden = true;
 }
 
 function featuresFor(rx, ry) {
@@ -77,9 +92,11 @@ function handleGazeFrame(payload) {
 
   const enoughSamples = sampleBuffer.length >= MIN_SAMPLES_TO_CONFIRM;
   targetEl.classList.toggle('capturing', enoughSamples);
+  // O contador (N/8) ajuda a diagnosticar: se ele nunca sair de 1, é sinal
+  // de que os frames pararam de chegar (em vez de o rosto não ser achado).
   runningHintEl.textContent = enoughSamples
     ? 'Pisque com os dois olhos para confirmar'
-    : 'Olhe fixamente para o ponto…';
+    : `Olhe fixamente para o ponto… (${sampleBuffer.length}/${MIN_SAMPLES_TO_CONFIRM})`;
 
   const closeThreshold = settings.blinkCloseThreshold;
   const openThreshold = settings.blinkOpenThreshold;
@@ -154,20 +171,29 @@ chrome.runtime.onMessage.addListener((message) => {
   if (message.type === MSG.ENGINE_READY) {
     engineReady = true;
     engineStatusEl.textContent = '';
+    hideGlobalError();
   }
   if (message.type === MSG.ENGINE_ERROR) {
-    engineStatusEl.textContent = describeEngineError(message.payload.message);
+    // Banner global (não só o texto da tela de intro) porque esse erro pode
+    // chegar bem depois do usuário já ter avançado para a tela de pontos.
+    showGlobalError(describeEngineError(message.payload), { retryable: true });
   }
 });
 
-function describeEngineError(code) {
+function describeEngineError({ stage, message: code, raw }) {
   if (code === 'camera-permission-denied') {
     return 'Permissão de câmera negada. Autorize o acesso e recarregue esta página.';
   }
   if (code === 'camera-not-found') {
     return 'Nenhuma câmera encontrada neste dispositivo.';
   }
-  return 'Não foi possível iniciar a câmera.';
+  if (code === 'camera-busy') {
+    return 'A câmera parece estar em uso por outro programa ou aba (Zoom, Teams, Câmera do Windows...). Feche o que estiver usando ela e clique em "Tentar novamente".';
+  }
+  // Erro não catalogado (falha ao carregar o MediaPipe/modelo, por exemplo)
+  // — mostra a mensagem real em vez de esconder atrás de um texto genérico.
+  const stageLabel = stage === 'engine' ? 'ao carregar o motor de rastreamento' : 'ao acessar a câmera';
+  return `Erro ${stageLabel}: ${raw || code}`;
 }
 
 document.getElementById('start-full').addEventListener('click', () => startFlow('full'));
@@ -178,11 +204,62 @@ window.addEventListener('beforeunload', () => {
   chrome.runtime.sendMessage({ type: MSG.STOP_CALIBRATION }).catch(() => {});
 });
 
+// Documentos offscreen (onde a câmera roda de verdade — ver
+// src/background/offscreen.js) são invisíveis, então o Chrome NÃO consegue
+// mostrar ali o popup de "Permitir acesso à câmera?": não existe superfície
+// visível pra ancorar o balão de permissão, e o getUserMedia() só falha
+// silenciosamente. A saída é pedir a permissão uma vez a partir desta aba
+// (que é normal e visível) antes de mandar o offscreen ligar a câmera —
+// uma vez concedida, ela vale pra origem inteira da extensão, offscreen
+// incluso, e não é pedida de novo.
+async function ensureCameraPermission() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    stream.getTracks().forEach((track) => track.stop());
+    // Dá um instante pro driver da webcam liberar o dispositivo antes do
+    // offscreen tentar abrir o stream dele (evita "câmera em uso" — o
+    // offscreen também tenta de novo sozinho se isso acontecer mesmo assim).
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    return true;
+  } catch (error) {
+    const code = error?.name === 'NotAllowedError'
+      ? 'camera-permission-denied'
+      : error?.name === 'NotFoundError'
+        ? 'camera-not-found'
+        : 'camera-busy';
+    const raw = `${error?.name || 'Error'}: ${error?.message || error}`;
+    showGlobalError(describeEngineError({ stage: 'camera', message: code, raw }), { retryable: true });
+    engineStatusEl.textContent = '';
+    return false;
+  }
+}
+
+async function startEngine() {
+  startFullBtn.disabled = true;
+  startQuickBtn.disabled = true;
+  engineReady = false;
+
+  const granted = await ensureCameraPermission();
+  if (!granted) {
+    startFullBtn.disabled = false;
+    startQuickBtn.disabled = false;
+    return;
+  }
+
+  chrome.runtime.sendMessage({ type: MSG.START_CALIBRATION });
+  // Pequena espera para dar feedback caso a câmera demore pra iniciar no
+  // offscreen (o modelo do MediaPipe ainda precisa carregar).
+  engineStatusEl.textContent = 'Carregando o motor de rastreamento…';
+  startFullBtn.disabled = false;
+  startQuickBtn.disabled = false;
+}
+
+globalBannerRetryEl.addEventListener('click', () => {
+  hideGlobalError();
+  startEngine();
+});
+
 (async function init() {
   settings = await getSettings();
-  chrome.runtime.sendMessage({ type: MSG.START_CALIBRATION });
-  // Pequena espera para dar feedback caso a câmera demore/erro logo de cara.
-  setTimeout(() => {
-    if (!engineReady) engineStatusEl.textContent = 'Iniciando câmera… conceda a permissão se solicitado.';
-  }, 400);
+  await startEngine();
 })();

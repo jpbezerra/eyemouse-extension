@@ -6,6 +6,15 @@
   box-sizing: border-box;
 }
 
+/* .screen define `display: flex`, que — por vir de uma folha de estilo do
+   autor — tem prioridade sobre a regra padrão `[hidden]{display:none}` do
+   navegador (que é de "user agent"), mesmo com especificidade igual. Sem
+   isso, alternar a propriedade `hidden` via JS não escondia nada, e as três
+   telas (intro/running/done) ficavam todas visíveis, sobrepostas. */
+[hidden] {
+  display: none !important;
+}
+
 html, body {
   margin: 0;
   height: 100%;
@@ -111,4 +120,41 @@ html, body {
   transform: translateX(-50%);
   font-size: 13px;
   color: #94a3b8;
+}
+
+/* Fora de qualquer .screen de propósito — precisa ficar visível não
+   importa qual tela (intro/running/done) esteja ativa no momento. */
+.global-banner {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #7f1d1d;
+  color: #fee2e2;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 14px;
+  max-width: 480px;
+  text-align: center;
+  z-index: 1000;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-retry {
+  border: 1px solid rgba(255,255,255,0.5);
+  background: transparent;
+  color: #fee2e2;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.btn-retry:hover {
+  background: rgba(255,255,255,0.12);
 }

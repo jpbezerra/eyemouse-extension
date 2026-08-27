@@ -4,11 +4,21 @@
 // Tudo roda dentro de uma Shadow Root para que o CSS do site hospedeiro
 // nunca vaze para o nosso cursor (e vice-versa).
 
-const COLORS = {
-  idle: 'rgba(59, 130, 246, 0.6)', // azul, 60% opacidade — RF05.1
-  click: 'rgba(34, 197, 94, 0.95)', // verde — RF05.2
-  paused: 'rgba(148, 163, 184, 0.55)' // cinza — RF05.3
+// Visual em "vidro" (glassmorphism): gradiente radial com um brilho no
+// canto superior esquerdo simulando luz refletida, esmaecendo para as
+// bordas — dá sensação de volume/relevo numa forma que continua
+// predominantemente transparente, em vez de um círculo azul chapado.
+const GRADIENTS = {
+  idle: 'radial-gradient(circle at 32% 28%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.30) 15%, rgba(96,165,250,0.38) 45%, rgba(37,99,235,0.22) 75%, rgba(37,99,235,0.08) 100%)', // azul — RF05.1
+  click: 'radial-gradient(circle at 32% 28%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.40) 15%, rgba(74,222,128,0.55) 45%, rgba(22,163,74,0.35) 75%, rgba(22,163,74,0.12) 100%)', // verde — RF05.2
+  paused: 'radial-gradient(circle at 32% 28%, rgba(255,255,255,0.70) 0%, rgba(255,255,255,0.22) 15%, rgba(148,163,184,0.32) 45%, rgba(100,116,139,0.20) 75%, rgba(100,116,139,0.08) 100%)' // cinza — RF05.3
 };
+
+// Sombra externa (eleva o ponto sobre a página) + duas sombras internas
+// (brilho no topo, sombra sutil embaixo) — é isso que dá o "relevo" de
+// vidro/bolha em vez de um disco liso.
+const DOT_SHADOW = '0 3px 10px rgba(15, 23, 42, 0.32), inset 0 1px 1px rgba(255,255,255,0.65), inset 0 -3px 5px rgba(15, 23, 42, 0.16)';
+const DOT_SHADOW_CLICK = '0 2px 8px rgba(15, 23, 42, 0.35), inset 0 1px 1px rgba(255,255,255,0.8), inset 0 -2px 4px rgba(15, 23, 42, 0.18)';
 
 export class PointerOverlay {
   constructor() {
@@ -21,18 +31,28 @@ export class PointerOverlay {
         .dot {
           position: fixed;
           top: 0; left: 0;
-          width: 22px; height: 22px;
+          width: 26px; height: 26px;
           border-radius: 50%;
-          background: ${COLORS.idle};
-          border: 2px solid rgba(255,255,255,0.9);
-          box-shadow: 0 0 6px rgba(0,0,0,0.25);
+          background: ${GRADIENTS.idle};
+          border: 1px solid rgba(255,255,255,0.45);
+          box-shadow: ${DOT_SHADOW};
+          backdrop-filter: blur(0.5px);
           transform: translate(-50%, -50%);
-          transition: background-color 0.12s ease-out, width 0.12s ease-out, height 0.12s ease-out;
+          transition: background 0.15s ease-out, box-shadow 0.15s ease-out, width 0.12s ease-out, height 0.12s ease-out;
           will-change: top, left;
         }
+        .dot.paused {
+          background: ${GRADIENTS.paused};
+        }
+        /* Precisa vir DEPOIS de .dot.paused: mesma especificidade (duas
+           classes), então quem ganha é a ordem no CSS — assim um clique
+           (ainda que raro) sempre aparece em verde, mesmo pausado. Setar
+           a cor via style inline (como era antes) não funcionava porque
+           estilo inline sempre vence regra de classe do stylesheet. */
         .dot.clicked {
-          width: 14px; height: 14px;
-          background: ${COLORS.click};
+          width: 17px; height: 17px;
+          background: ${GRADIENTS.click};
+          box-shadow: ${DOT_SHADOW_CLICK};
         }
         .banner {
           position: fixed;
@@ -74,7 +94,7 @@ export class PointerOverlay {
   }
 
   setPaused(isPaused) {
-    this.dotEl.style.background = isPaused ? COLORS.paused : COLORS.idle;
+    this.dotEl.classList.toggle('paused', isPaused);
   }
 
   showClickFeedback() {

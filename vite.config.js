@@ -28,7 +28,14 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
 export default defineConfig({
   build: {
     outDir: 'dist',
-    emptyOutDir: true,
+    // false de propósito: em `npm run dev`, este config e vite.content.config.js
+    // rodam em --watch simultaneamente (via concurrently). Se este aqui limpasse
+    // a dist/ inteira a cada rebuild, ele apagaria o content.js (e popup/,
+    // calibration/, icons/, models/, wasm/) que pertence ao outro processo,
+    // deixando "Não foi possível carregar content.js" no chrome://extensions.
+    // Quem garante uma dist/ limpa em build de produção é o `rimraf dist`
+    // no início do script "build" do package.json.
+    emptyOutDir: false,
     target: 'chrome100',
     rollupOptions: {
       input: {

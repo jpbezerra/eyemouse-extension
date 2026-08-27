@@ -18,6 +18,15 @@
   box-sizing: border-box;
 }
 
+/* .field define `display: flex`, que tem prioridade sobre a regra padrão
+   `[hidden]{display:none}` do navegador mesmo com especificidade igual
+   (autor > user-agent). Sem isso, esconder #dwell-time-field via JS
+   (`hidden = true`) não funcionava, e o slider de fixação ficava visível
+   mesmo com o modo "Piscada" selecionado. */
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   width: 320px;

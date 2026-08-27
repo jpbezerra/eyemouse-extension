@@ -16,9 +16,12 @@ const engineWarning = document.getElementById('engine-warning');
 
 let hasCalibration = false;
 
-function sensitivityLabel(alphaPct) {
-  if (alphaPct < 12) return 'Muito suave';
-  if (alphaPct < 20) return 'Média';
+// Slider representa o corte mínimo (Hz) do filtro One-Euro diretamente
+// (0.3 a 2.5) — ver comentário em utils/storage.js. Não é mais uma
+// porcentagem de alpha de EMA.
+function sensitivityLabel(minCutoff) {
+  if (minCutoff < 0.6) return 'Muito suave';
+  if (minCutoff < 1.6) return 'Média';
   return 'Responsiva';
 }
 
@@ -40,9 +43,8 @@ function renderState(settings, calibrationPresent) {
   dwellInput.value = settings.dwellTimeMs;
   dwellValue.textContent = `${settings.dwellTimeMs}ms`;
 
-  const alphaPct = Math.round(settings.smoothingAlpha * 100);
-  sensitivityInput.value = alphaPct;
-  sensitivityValue.textContent = sensitivityLabel(alphaPct);
+  sensitivityInput.value = settings.gazeMinCutoff;
+  sensitivityValue.textContent = sensitivityLabel(settings.gazeMinCutoff);
 
   soundCheckbox.checked = settings.soundFeedback;
 }
@@ -85,7 +87,7 @@ sensitivityInput.addEventListener('input', (e) => {
   sensitivityValue.textContent = sensitivityLabel(Number(e.target.value));
 });
 sensitivityInput.addEventListener('change', (e) => {
-  updateSettings({ smoothingAlpha: Number(e.target.value) / 100 });
+  updateSettings({ gazeMinCutoff: Number(e.target.value) });
 });
 
 soundCheckbox.addEventListener('change', (e) => {
@@ -94,8 +96,15 @@ soundCheckbox.addEventListener('change', (e) => {
 
 chrome.runtime.onMessage.addListener((message) => {
   if (message.type === MSG.ENGINE_ERROR) {
+    const { message: code, raw } = message.payload;
     engineWarning.hidden = false;
-    engineWarning.textContent = 'A câmera não pôde ser iniciada. Verifique as permissões.';
+    engineWarning.textContent = code === 'camera-permission-denied'
+      ? 'Permissão de câmera negada.'
+      : code === 'camera-not-found'
+        ? 'Nenhuma câmera encontrada.'
+        : code === 'camera-busy'
+          ? 'Câmera em uso por outro programa/aba.'
+          : `Erro: ${raw || code}`;
   }
 });
 
