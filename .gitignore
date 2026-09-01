@@ -3,3 +3,4 @@ dist/
 public/models/*.task
 .DS_Store
 *.log
+*.timestamp*

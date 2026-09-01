@@ -19,7 +19,9 @@ A IA atuará identificando a **intenção do usuário** a partir do contexto da 
 #### 1. Inferência de Intenção por Movimento Ocular Limitado
 - **Reconhecimento de Hesitação / Dwell Preditivo**: Quando o olhar do usuário paira próximo a uma área com múltiplos elementos interativos (ex: links pequenos, botões próximos), a IA analisa a estrutura da página (DOM) e identifica o alvo mais provável.
 - **Atração Magnética do Cursor (*Target Snap*)**: Atração suave do pontinho do cursor para o centro do botão/link mais próximo ao detectar intenção de clique, reduzindo a fadiga ocular.
-- **Magnificação Visual de Alvo (*Smart Zoom*)**: Expansão automática do elemento ou área sob o olhar para facilitar a precisão visual e o clique.
+- **Magnificação Visual e Lupa por Esforço Ocular (*Smart Zoom por Squinting / Flexão Ocular*)**:
+  - **Detecção de Olhos Semicerrados (*Squint Detection*)**: Monitoramento da taxa de abertura palpebral (EAR). Quando o usuário "flexiona" ou estreita os olhos involuntariamente tentando enxergar um detalhe ou texto pequeno, o MediaPipe identifica a redução parcial mantida do EAR sem piscada completa.
+  - **Lupa Instantânea Automatizada**: O sistema aciona instantaneamente um zoom/ampliação magnética focada exatamente na região para onde o olhar está direcionado, facilitando a leitura e a precisão do clique sem necessitar de comandos manuais.
 
 #### 2. Menu Radial de Ações Preditivas (*Contextual Action Wheel*)
 - Ao detectar que o usuário está navegando em formulários, listas ou artigos, um menu discreto pode surgir com sugestões contextuais acionáveis por um único olhar ou piscada:
