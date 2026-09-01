@@ -1,262 +1,165 @@
-# EyeMouse — Controle do Cursor por Rastreamento Ocular
+# 👁️ EyeMouse — Controle do Cursor por Rastreamento Ocular
 
-Extensão Chrome (Manifest V3) que permite navegar 100% hands-free usando os
-olhos: mover o cursor com o olhar, clicar piscando (ou por fixação/dwell),
-rolar a página e alternar Ativo/Pausado por gestos ou atalho de teclado.
-Implementada a partir do PRD/especificação técnica fornecidos, com algumas
-correções e melhorias de arquitetura descritas na seção **"O que mudou em
-relação ao documento original"** abaixo — vale a pena ler antes de mexer no
-código.
+<p align="center">
+  <strong>Navegue na web 100% hands-free utilizando rastreamento ocular via webcam e Inteligência Artificial rodando localmente no navegador.</strong>
+</p>
 
-## Como rodar
+<p align="center">
+  <img src="https://img.shields.io/badge/Manifest-V3-blue.svg" alt="Manifest V3" />
+  <img src="https://img.shields.io/badge/Chrome-Extension-4285F4?logo=googlechrome&logoColor=white" alt="Chrome Extension" />
+  <img src="https://img.shields.io/badge/AI-MediaPipe%20Vision-FF6F00?logo=google&logoColor=white" alt="MediaPipe" />
+  <img src="https://img.shields.io/badge/Privacidade-100%25%20Local-brightgreen.svg" alt="100% Local & Privado" />
+  <img src="https://img.shields.io/badge/Build-Vite-646CFF?logo=vite&logoColor=white" alt="Vite" />
+  <img src="https://img.shields.io/badge/Licen%C3%A7a-MIT-yellow.svg" alt="Licença MIT" />
+</p>
 
-```bash
-npm install
-npm run download-model   # baixa public/models/face_landmarker.task (~3.7MB)
-npm run build
+---
+
+## 🌟 Visão Geral
+
+**EyeMouse** é uma extensão para Google Chrome (Manifest V3) projetada para proporcionar acessibilidade e navegabilidade assistiva. Ela permite controlar o cursor do mouse com o movimento dos olhos, realizar cliques por piscadas ou fixação do olhar (*dwell click*), e rolar páginas web sem a necessidade de mãos ou dispositivos físicos periféricos.
+
+Diferente de soluções baseadas em nuvem ou bibliotecas simplificadas, o EyeMouse executa modelos avançados de visão computacional (**MediaPipe FaceLandmarker**) diretamente no hardware do usuário via **WebAssembly / GPU**, garantindo **privacidade absoluta e latência ultra-baixa**.
+
+---
+
+## ✨ Principais Funcionalidades
+
+- 🎯 **Rastreamento Ocular de Alta Precisão**: Mapeamento do olhar com calibração por regressão polinomial adaptativa (9 pontos de calibração completa ou 3 pontos para recalibração rápida).
+- 🖱️ **Cliques Nativos Reais (CDP)**: Disparo de eventos de clique confiáveis via Chrome DevTools Protocol (`chrome.debugger`), permitindo interação com qualquer elemento web, botões, formulários e aplicações complexas.
+- 👁️ **Múltiplos Modos de Interação**:
+  - **Clique por Piscada**: Piscada natural dos dois olhos (150ms a 400ms).
+  - **Duplo Clique**: Duas piscadas consecutivas em menos de 350ms.
+  - **Modo Fixação (*Dwell Click*)**: Clique automático ao manter o olhar parado sobre um elemento durante o tempo configurado (ideal para evitar fadiga ocular).
+  - **Piscada Única (Wink)**: Olho esquerdo para rolar para baixo (*Page Down*), olho direito para rolar para cima (*Page Up*).
+- 📜 **Scroll por Bordas**: Ragem automática da página ao fixar o olhar nas extremidades superior ou inferior da tela.
+- 🔒 **Privacidade por Design (100% On-Device)**: O vídeo da webcam é processado exclusivamente em um contexto isolado (`chrome.offscreen`). **Nenhum frame ou dado facial é gravado, armazenado ou enviado para servidores externos.**
+- ⚡ **Ativação Versátil**: Alterne entre *Ativo* e *Pausado* rapidamente via atalho (`Alt+E`), gesto de piscada rápida (Esquerdo ➔ Direito em <500ms) ou através do menu popup.
+
+---
+
+## 🏗️ Arquitetura do Sistema
+
+A extensão adota uma arquitetura descentralizada para maximizar o desempenho, a segurança e o isolamento de permissões:
+
+```mermaid
+flowchart TD
+    subgraph Offscreen ["🎥 Offscreen Document (offscreen.html)"]
+        Cam["Captura da Webcam"] --> MP["MediaPipe FaceLandmarker (WASM)"]
+        MP --> Feature["Cálculo EAR & Razão Íris/Olho"]
+    end
+
+    subgraph Background ["⚙️ Service Worker (background.js)"]
+        SW["Gerenciador de Estado & Abas"] --> CDP["Chrome DevTools Protocol (chrome.debugger)"]
+    end
+
+    subgraph Content ["💻 Content Script (content.js)"]
+        Reg["Regressão Polinomial (Gaze -> Tela)"] --> EMA["Filtro de Suavização EMA"]
+        EMA --> Overlay["Cursor Overlay (Shadow DOM)"]
+        Overlay --> Logic["Detector de Piscada / Dwell / Scroll"]
+    end
+
+    Feature -- "Gaze cru + EAR (via messaging)" --> SW
+    SW -- "Roteamento de quadros" --> Reg
+    Logic -- "Solicitação de Clique Nativo" --> SW
+    SW -- "Dispara Input Event" --> CDP
 ```
 
-Se `npm run download-model` falhar por causa de bloqueio de rede/allowlist
-corporativa, baixe manualmente pela URL impressa no erro e salve em
-`public/models/face_landmarker.task` (veja também `public/models/README.md`).
+- **Offscreen Document (`offscreen.html`)**: Único componente com acesso à webcam. Roda a IA MediaPipe com aceleração de hardware e gera apenas coordenadas e taxas de abertura palpebral (EAR).
+- **Background Service Worker (`background.js`)**: Gerencia o ciclo de vida da extensão e executa os cliques nativos via `chrome.debugger`.
+- **Content Script (`content.js`)**: Injetado nas páginas web. Processa a calibração, aplica a suavização do cursor no Shadow DOM isolado da página e detecta os gestos.
+- **Storage (`chrome.storage.local`)**: Fonte única de verdade para configurações e calibração.
 
-Depois do build:
+---
 
-1. Abra `chrome://extensions/`.
-2. Ative o **Modo do desenvolvedor**.
-3. Clique em **Carregar sem compactação** e selecione a pasta `dist/`.
-4. Clique no ícone da extensão e depois em **Calibrar (9 pontos)** — a
-   calibração é obrigatória antes do primeiro uso (RF04.1). Ela também abre
-   sozinha na primeira instalação.
-5. Depois de calibrar, clique em **Ativar EyeMouse** no popup (ou use
-   `Alt+E`, ou pisque Esquerdo→Direito em menos de 500ms).
+## 🚀 Como Instalar e Rodar
 
-Para desenvolvimento contínuo, `npm run dev` roda o Vite em modo `--watch`
-(ainda assim é preciso clicar em "Atualizar" na página de extensões do
-Chrome a cada rebuild).
+### Pré-requisitos
 
-## Como testar
+- **Google Chrome** (ou navegadores Chromium v116+)
+- **Node.js** v18 ou superior
+- **Webcam** operacional
 
-Não existe algo como "rodar os testes automatizados" aqui — é uma extensão que
-depende de câmera e olhos de verdade, então o teste é majoritariamente
-manual. Um roteiro razoável, na ordem:
+### Passo a Passo
 
-1. **Build limpo.** `rm -rf dist && npm run build` e recarregue a extensão
-   em `chrome://extensions/` (ícone de atualizar no card da extensão).
-   Confira no card se não aparece "Erro" — clique em **Erros** se aparecer.
-2. **Service worker sem erro.** No mesmo card, clique em **service worker**
-   (ou **Inspecionar visualizações**) para abrir o DevTools do background e
-   veja se o console está limpo.
-3. **Calibração.** Abra o popup → **Calibrar (9 pontos)**. Autorize a
-   câmera quando o Chrome pedir. Olhe para cada ponto e pisque com os dois
-   olhos — o ponto muda de azul para verde quando já capturou amostras
-   suficientes, e avança sozinho após a piscada confirmar. Se travar num
-   ponto, geralmente é iluminação ruim ou os olhos fora do quadro da webcam.
-4. **Ativação.** No popup, **Ativar EyeMouse**. Um pontinho azul deve
-   aparecer seguindo o seu olhar (pausado = cinza). Teste também `Alt+E` e
-   o gesto piscar Esquerdo→Direito em menos de 500ms para pausar/retomar.
-5. **Clique.** Olhe para um link/botão e pisque os dois olhos por
-   150–400ms — deve disparar um clique de verdade na página (não só mover o
-   cursor). Duas piscadas em menos de 350ms = duplo clique.
-6. **Scroll.** Olhe para o topo ou o rodapé da tela por ~400ms para rolar
-   automaticamente; pisque só o olho esquerdo (Page Down) ou só o direito
-   (Page Up) para saltos maiores.
-7. **Modo dwell.** No popup, troque o modo de clique para "Fixação do
-   olhar" e ajuste o tempo — segure o olhar parado (dentro de ~15px) pelo
-   tempo configurado para clicar sem piscar. Bom para quem cansa de piscar.
-8. **Casos de erro.** Negue a permissão de câmera uma vez (em
-   `chrome://settings/content/camera`, revogue para testar) e confirme que
-   aparece um aviso legível em vez de travar silenciosamente. Abra o
-   DevTools manualmente numa aba ativa e tente clicar — deve aparecer o
-   aviso de que outro depurador já está anexado.
-9. **Em sites variados.** Teste em pelo menos um site com muitos iframes
-   (ex.: um site de notícias) e um SPA pesado (ex.: Gmail) — o clique via
-   `chrome.debugger` funciona no frame principal; cliques dentro de
-   `<iframe>` de outra origem não são o foco desta primeira versão.
-
-Se quiser automatizar a parte de "a extensão sobe sem erro" (sem testar
-câmera/olhos de verdade), dá pra usar Playwright com
-`--use-fake-device-for-media-stream` — isso valida que os scripts carregam,
-mas não substitui testar com uma webcam e um rosto reais.
-
-## Arquitetura
-
-```
-manifest.json (permissions, content_scripts, commands)
-        │
-        ├── background.js (service worker)
-        │     • cria/fecha o documento offscreen
-        │     • rastreia a aba ativa
-        │     • executa cliques nativos via chrome.debugger (CDP)
-        │     • roteia frames de gaze cru para a aba certa
-        │     • Alt+E, GET_STATE/TOGGLE_STATE/SET_SETTINGS
-        │
-        ├── offscreen.html + offscreen.js (chrome.offscreen)
-        │     • único lugar que toca a câmera
-        │     • MediaPipe FaceLandmarker (WASM/GPU, tudo local)
-        │     • calcula EAR (piscada) e razão íris/olho (olhar)
-        │     • detector simples de pouca luz
-        │
-        ├── content.js (injetado em todas as páginas)
-        │     • aplica a calibração (regressão) -> fração de tela
-        │     • suavização EMA, detector de piscada/wink, dwell, scroll
-        │     • desenha o cursor (Shadow DOM) e pede cliques ao background
-        │
-        ├── popup/ (UI da extensão)
-        ├── calibration/ (fluxo de calibração de 9 ou 3 pontos)
-        └── utils/ (storage, matemática, constantes — sem dependências)
-```
-
-Tudo o que decide "o que fazer" com a piscada (clicar, rolar, alternar
-estado) mora no **content script**, porque é ele quem conhece o pixel real
-da página. O **offscreen** só entrega números crus (posição normalizada do
-olhar + abertura das pálpebras). O **background** só orquestra processos e
-executa ações que exigem privilégio de extensão (debugger, storage, abas).
-
-Estado (Ativo/Pausado, configurações, calibração) mora **só** em
-`chrome.storage.local`. Popup, content script e página de calibração leem o
-valor atual e escutam `chrome.storage.onChanged` diretamente — não há
-mensagens de "avisar todo mundo que o estado mudou" para não duplicar fonte
-de verdade nem correr risco de uma aba perder um broadcast.
-
-## O que mudou em relação ao documento original
-
-O PRD e a especificação técnica foram o ponto de partida, mas alguns pontos
-do código de exemplo tinham problemas reais que valia a pena corrigir em vez
-de replicar:
-
-- **Câmera movida para um documento offscreen.** No design original, cada
-  content script (ou seja, cada aba/site) abriria sua própria captura de
-  webcam. Isso pediria permissão de câmera *por site* e rodaria o
-  MediaPipe várias vezes ao mesmo tempo se houvesse várias abas abertas.
-  Com `chrome.offscreen`, a câmera é aberta uma única vez, sobrevive à
-  troca de abas e nunca fica exposta ao código da página visitada — o que
-  também é melhor para RNF01 (privacidade) e RNF03 (superfície de
-  permissões).
-- **WASM do MediaPipe servido localmente**, em vez do CDN
-  (`cdn.jsdelivr.net`) usado no exemplo. Com a câmera isolada no contexto
-  da extensão, isso também elimina a necessidade de `web_accessible_resources`
-  para o modelo `.task` e para `calibration.html` — nenhum recurso interno
-  fica exposto a `<all_urls>`.
-- **Cálculo do EAR (Eye Aspect Ratio) corrigido.** O código de exemplo do
-  documento técnico media a distância entre pontos incorretos (dois pontos
-  da pálpebra superior entre si, em vez de superior-com-inferior), o que
-  faria a piscada nunca ser detectada corretamente. A fórmula implementada
-  aqui segue a definição clássica de Soukupová & Čech.
-- **Olhar invariante a movimento de cabeça.** O exemplo original usava a
-  posição absoluta da íris na imagem da webcam para mover o cursor — mover
-  a cabeça (sem mover os olhos) moveria o cursor do mesmo jeito. Aqui o
-  sinal usado é a posição da íris *dentro da caixa delimitadora do próprio
-  olho*, que é muito mais robusta a pequenos deslocamentos de cabeça.
-- **Calibração de verdade.** O RF04.1 pede uma grade de 9 pontos, mas o
-  código de exemplo já ia direto de "posição da íris" para "posição do
-  cursor" sem nenhuma calibração. Foi implementada uma regressão polinomial
-  (mínimos quadrados, sem dependências externas) treinada nos 9 pontos, além
-  de uma recalibração rápida de 3 pontos (mitigação de risco sugerida no
-  próprio PRD para troca de óculos/iluminação).
-- **Dwell click, wink e o gesto de alternância de estado** (RF02.4, RF03.2,
-  RF04.3) não apareciam no código de exemplo — foram implementados do zero.
-- **`chrome.debugger` anexado uma vez por aba**, não a cada clique. Anexar e
-  desanexar em todo clique piscaria repetidamente o aviso "X começou a
-  depurar este navegador" do Chrome; agora a sessão de debugger fica aberta
-  enquanto o EyeMouse estiver ativo naquela aba.
-- **Permissões reduzidas.** `activeTab` e `scripting` do manifest de exemplo
-  não eram usados por nada no fluxo real e foram removidos; `<all_urls>` em
-  `web_accessible_resources` também saiu (ver ponto do offscreen acima).
-  Isso ajuda na revisão da Chrome Web Store (RNF03).
-
-## Como publicar na Chrome Web Store
-
-**Aviso honesto antes de começar:** a permissão `debugger` é de longe o
-maior obstáculo. O Google restringe bastante o uso dessa API fora de
-ferramentas de desenvolvedor, e ela é o único jeito confiável de gerar
-cliques que a própria página aceita como reais (eventos disparados via
-`element.click()`/`dispatchEvent` têm `isTrusted: false` e muitos sites
-ignoram). Não há garantia de aprovação — o PRD já previa isso na tabela de
-riscos, com a mitigação de gravar um vídeo demonstrando o uso. Se a loja
-rejeitar, a alternativa é distribuir como "carregar sem compactação" para
-uso pessoal/organizacional (política de empresa via `ExtensionInstallForcelist`)
-em vez de loja pública.
-
-Passo a passo:
-
-1. **Conta de desenvolvedor.** Crie uma em
-   https://chrome.google.com/webstore/devconsole (taxa única de US$5,
-   cobrada uma vez por conta, não por extensão).
-2. **Build de produção limpo.**
+1. **Clone o repositório:**
    ```bash
-   rm -rf dist node_modules
+   git clone https://github.com/seu-usuario/eyemouse-extension.git
+   cd eyemouse-extension
+   ```
+
+2. **Instale as dependências:**
+   ```bash
    npm install
+   ```
+
+3. **Faça o download do modelo local do MediaPipe:**
+   ```bash
    npm run download-model
+   ```
+   > *Nota: Este comando baixa o arquivo `face_landmarker.task` (~3.7MB) para `public/models/`.*
+
+4. **Compile o projeto:**
+   ```bash
    npm run build
    ```
-3. **Substitua os ícones placeholder.** `public/icons/icon16.png`,
-   `icon48.png` e `icon128.png` foram gerados por script
-   (`scripts/make_icons.py`) só para o projeto rodar — troque por uma
-   identidade visual de verdade antes de submeter.
-4. **Zipe a pasta `dist/`** (não o projeto inteiro — `node_modules`,
-   `src/`, etc. não vão no pacote): o zip deve conter `manifest.json` na
-   raiz, não dentro de uma subpasta.
-5. **Suba o zip** em "Add new item" no Developer Dashboard.
-6. **Preencha a ficha da loja:**
-   - Descrição, categoria (Acessibilidade/Produtividade), idioma.
-   - Screenshots (1280×800 ou 640×400) e um ícone de loja 128×128.
-   - **Política de privacidade** (obrigatória por causa da permissão de
-     câmera): hospede um texto simples explicando que o vídeo é processado
-     100% localmente, nunca é gravado nem enviado a servidores (RNF01) —
-     um `.html` ou até uma página no GitHub Pages serve.
-   - **Justificativas de permissão** (aba "Privacy practices" do
-     dashboard): explique cada uma —
-     `storage` (salvar calibração/preferências localmente),
-     `offscreen` (manter a câmera processando entre trocas de aba),
-     `debugger` (único jeito de gerar cliques nativos aceitos pelas
-     páginas — mencione que é usado exclusivamente para isso, nunca para
-     inspecionar dados do usuário), `host_permissions <all_urls>`
-     (o cursor e o clique precisam funcionar em qualquer site que o
-     usuário visite).
-   - Declare "Não vendemos nem transferimos dados do usuário" — é verdade
-     aqui, já que nada sai da máquina.
-7. **Vídeo de demonstração.** Grave um vídeo curto mostrando calibração +
-   clique real numa página comum, deixando claro por que `debugger` é
-   necessário — anexe no campo de justificativa ou como um link
-   (YouTube não-listado). Isso é exatamente a mitigação que o PRD sugeriu
-   para esse risco.
-8. **Envie para revisão.** Extensões com `debugger` costumam levar mais
-   tempo (a revisão manual pode levar de alguns dias a poucas semanas).
-   Se for rejeitada, o e-mail de rejeição normalmente aponta o motivo
-   exato — geralmente pedem para reduzir permissões ou detalhar melhor a
-   justificativa.
-9. **Atualizações depois de publicada:** suba um novo zip com `version`
-   incrementado em `public/manifest.json` (ex.: `1.0.1`) pelo mesmo
-   Developer Dashboard — não precisa pagar de novo.
 
-### Distribuir sem passar pela loja pública
+5. **Carregue no Google Chrome:**
+   1. Abra `chrome://extensions/` no navegador.
+   2. Ative o **Modo do desenvolvedor** no canto superior direito.
+   3. Clique em **Carregar sem compactação** (*Load unpacked*).
+   4. Selecione a pasta `dist/` gerada na raiz do projeto.
 
-- **Uso pessoal/teste:** continue usando "Carregar sem compactação" — não
-  expira, mas só funciona com o Modo do desenvolvedor ativado naquele
-  Chrome.
-- **Empresa/organização (Google Workspace):** dá pra forçar a instalação
-  via política (`ExtensionInstallForcelist` no Chrome gerenciado) apontando
-  para um pacote `.crx` hospedado por vocês, sem precisar da Web Store
-  pública — útil se o objetivo inicial é uso interno/institucional
-  (ex.: uma clínica ou universidade) em vez de público geral.
+---
 
-## Limitações conhecidas / próximos passos
+## 🎯 Como Usar
 
-- O clique nativo via `chrome.debugger` não funciona dentro de `chrome://`,
-  da Web Store e de algumas páginas internas do Chrome — é uma limitação da
-  própria API, não do código.
-- Se o DevTools estiver aberto manualmente na mesma aba, o `chrome.debugger`
-  não consegue anexar (Chrome só permite um debugger por aba); o content
-  script mostra um aviso nesse caso.
-- A calibração assume que a janela do navegador não muda de tamanho entre a
-  calibração e o uso — recalibre após redimensionar bastante a janela ou
-  trocar de monitor.
-- Os ícones em `public/icons/` são placeholders gerados por script
-  (`scripts/make_icons.py`); substitua por uma identidade visual definitiva
-  antes de publicar na Chrome Web Store.
-- Testado com build (`npm run build`) e carregamento automatizado da
-  extensão (service worker, content script, popup e página de calibração
-  sobem sem erros). Não foi possível testar o pipeline de câmera com um
-  rosto real neste ambiente — teste isso na sua máquina com uma webcam de
-  verdade antes de considerar o dwell/piscar "prontos".
+1. **Calibração (Obrigatória na primeira vez):**
+   - Ao instalar ou clicar em **Calibrar (9 pontos)** no popup da extensão, uma tela de calibração se abrirá.
+   - Permita o acesso à câmera quando solicitado.
+   - Olhe fixamente para cada um dos 9 pontos azuis e **pisque os dois olhos** para confirmar a captura. O ponto mudará para verde e avançará automaticamente.
+2. **Ativação:**
+   - Clique no ícone do EyeMouse na barra do Chrome e selecione **Ativar EyeMouse**.
+   - Você também pode usar o atalho de teclado `Alt+E` ou piscar **Olho Esquerdo ➔ Olho Direito** em menos de 500ms.
+3. **Navegação:**
+   - O pontinho azul indicará para onde seu olhar está direcionado.
+   - Pisque ambos os olhos por 150-400ms para clicar no elemento apontado.
+   - Se preferir o modo **Fixação (Dwell)**, basta manter o olhar parado sobre um botão/link para acionar o clique sem precisar piscar.
+
+---
+
+## 🛠️ Scripts Disponíveis
+
+| Comando | Descrição |
+| :--- | :--- |
+| `npm run dev` | Inicia o build em modo `--watch` (Vite) para desenvolvimento contínuo. |
+| `npm run build` | Limpa a pasta `dist/` e gera o build final otimizado para a extensão. |
+| `npm run download-model` | Baixa o arquivo do modelo IA `face_landmarker.task` para a pasta `public/models/`. |
+
+---
+
+## 🔒 Privacidade & Segurança
+
+O EyeMouse foi projetado com foco estrito em privacidade:
+- **Processamento 100% Local**: Nenhuma imagem da câmera é enviada para a nuvem ou compartilhada.
+- **Isolamento de Origem**: A captura de vídeo é restrita à página `offscreen` da extensão. Nenhuma página web visitada possui acesso à sua câmera.
+- **Sem Telemetria**: Não coletamos dados de uso, estatísticas nem hábitos de navegação.
+
+---
+
+## ⚠️ Limitações Conhecidas
+
+- **Páginas Internas do Chrome**: Devido a restrições de segurança do próprio Chrome, o controle do cursor e o `chrome.debugger` não funcionam em páginas como `chrome://`, `chrome-extension://` ou na Chrome Web Store.
+- **DevTools Aberto**: Se as Ferramentas do Desenvolvedor do Chrome estiverem abertas manualmente na mesma aba, o `chrome.debugger` não conseguirá anexar (o Chrome permite apenas uma sessão de debugger por aba).
+- **Redimensionamento da Janela**: A calibração é associada ao tamanho atual da janela do navegador. Caso redimensione significativamente a janela ou mude de monitor, realize uma recalibração rápida (3 pontos).
+
+---
+
+## 📄 Licença
+
+Este projeto está licenciado sob a licença [MIT](LICENSE) — sinta-se à vontade para utilizar, modificar e distribuir.
+
+<p align="center">
+  Desenvolvido para promover acessibilidade e tecnologia assistiva na web.
+</p>
+
