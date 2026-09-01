@@ -155,6 +155,17 @@ O EyeMouse foi projetado com foco estrito em privacidade:
 
 ---
 
+## 🔮 Roadmap & Visão de Futuro
+
+Estamos continuamente planejando novas formas de tornar a navegação web mais acessível. Nossas próximas versões incluem:
+- 🧠 **Inferência de Intenções por IA**: Identificação automática de alvos e sugestões contextuais para usuários com movimentos oculares limitados ou condições motoras severas.
+- 🧲 **Target Snap & Smart Zoom**: Atração magnética do cursor para botões/links e ampliação inteligente de alvos sob o olhar.
+- 🤖 **IA Generativa On-Device**: Integração com IA local (Chrome Built-in AI) para completar tarefas e preencher formulários por olhar.
+
+Confira a visão detalhada de desenvolvimento no arquivo [ROADMAP.md](ROADMAP.md).
+
+---
+
 ## 📄 Licença
 
 Este projeto está licenciado sob a licença [MIT](LICENSE) — sinta-se à vontade para utilizar, modificar e distribuir.
